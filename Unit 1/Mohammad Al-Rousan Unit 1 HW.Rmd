@@ -1,0 +1,187 @@
+---
+title: "Unit 1 Homework"
+author: "Mohammad Al-Rousan"
+date: "2023-05-17"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Excercise 1 
+
+```{r}
+library(Sleuth3)
+library(GGally)
+air<-ex1123
+head(air)
+ggpairs(air[,c(3:7,2)])
+
+```
+
+A: Based on the graphs, there does seem to be a trend when discussing SO2, nonwhite, and education when labeling factors that lead to morality rate. The trends I noticed that had a non-linear trends would be NOX which it fell straight down and flat lines, while precip had a bell shaped curve.
+
+
+```{r, echo=FALSE}
+air1 <- lm(Mort ~ Precip + Educ + NonWhite +SO2 + NOX, data = air)
+plot(air1)
+
+air2 <- lm(Mort ~ SO2 + NonWhite + Educ, data = air) 
+plot(air2)
+
+air3 <- lm(Mort ~ Precip + Educ + NonWhite +SO2, data = air)
+plot(air3)
+
+air4 <- lm(Mort ~ Precip + Educ + NonWhite, data = air)
+plot(air4)
+
+```
+B: After creating three seperate regression models, I decided to go with air1. Based on the QQ plot it is mostly linear, as well as a cloudy residual and Cooks distance plot. 
+
+
+
+```{r, echo=FALSE}
+library(car)
+vif(air1)
+
+vif(air4)
+
+```
+C:  If there are high VIFs among Education, Nonwhite, and Perecip variables, it indicates strong multicollinearity and raises concerns for this study's goals and research question. High VIF values suggest that these predictors are highly correlated with each other, making it difficult to assess their independent effects on the response variable. The presence of multicollinearity can lead to unstable and unreliable coefficient estimates, impacting the interpretability and statistical significance of the individual predictors. Addressing this issue is important, and potential solutions include removing correlated predictors, combining them into composite variables, or using dimensionality reduction techniques. Considering the high VIFs among these variables would significantly change the analysis and necessitate appropriate steps to mitigate multicollinearity and ensure the validity of the study.
+
+D: Assuming reasonable model assumptions, the regression coefficient associated with the pollution variables indicates the direction and strength of the association with mortality. A positive coefficient suggests that an increase in the pollution variable is associated with an increase in mortality, while a negative coefficient suggests a decrease in mortality. The magnitude of the coefficient reflects the strength of the association. It's important to consider the statistical significance of the coefficient and potential confounding factors when interpreting the relationship between pollution variables and mortality.
+
+
+```{r, echo=F}
+mymodel<-lm(Mort~Precip+Educ+NonWhite+log(NOX)+log(SO2),data=air)
+par(mfrow=c(2,2))
+plot(Mort~SO2,data=air)
+plot(Mort~log(SO2),data=air)
+plot(Mort~NOX,data=air)
+plot(Mort~log(NOX),data=air)
+par(mfrow=c(1,1))
+plot(mymodel)
+
+```
+E: The graphs were practically identical to the previous regression models. The QQ plots present a good linearity as well a cloudy residual and cooks distance plots. So, I would argue that I would the general conclusion would not change. 
+
+
+#Exercise 2
+
+```{r}
+fish<-read.csv("/Users/alrousan95/Downloads/ad8c3ab8-30db-3d92-b83a-c16efac57af4_Fish.csv",header=T,stringsAsFactors = T)
+summary(fish)
+View(fish)
+library(ggplot2)
+ggplot(fish,aes(x=Length1,y=log(Weight),color=Species))+geom_point()+geom_smooth(method="lm")
+```
+
+
+
+```{r, echo=FALSE}
+
+fishmodel<-lm(log(Weight)~Length1*Species,data=fish)
+summary(fishmodel)$coefficients
+
+#Contrast maker
+lm.contrast<-function(lmobj,contrast){
+  if(is.matrix(contrast)==F) contrast<-matrix(contrast,nrow=1)
+  if(ncol(contrast)!=length(coef(lmobj))) return("Error: Contrast length does not match the number of coefficients in linear model object.")
+  estimates<-contrast %*% coef(lmobj)
+  se<- sqrt(diag(contrast %*% vcov(lmobj) %*% t(contrast)))
+  t.stat<-estimates/se
+  p.val<-pt(-abs(t.stat),df=lmobj$df.residual)
+  ci.l<-estimates-qt(.975,df=lmobj$df.residual)*se
+  ci.u<-estimates+qt(.975,df=lmobj$df.residual)*se
+  results<-data.frame(Estimates=estimates,SE=se,t.stat,p.val,Lower=ci.l,Upper=ci.u)
+  return(results)
+  }
+
+#Contrasts for the discussion:
+contrast1<-c(0,0,0,0,1,0,0,0)  
+contrastHint<-c(0,0,0,0,1,1,0,0) #Hint:  This is comparing VC vs Supp specifically at Dose 1
+contrast2<-c(0,0,0,0,1,0,1,0)
+contrast3<-c(0,0,-1,1,0,0,0,0)
+
+contrast.matrix<-rbind(contrast1,contrast2,contrast3)
+fishContrast <- lm.contrast(fishmodel,contrast.matrix)
+
+# Calculate the 95% confidence interval for the slope of the Smelt species
+confidence_interval <- lm.contrast(fishmodel, contrast.matrix)
+
+# Access the Lower and Upper values of the confidence interval
+lower_bound <- confidence_interval$Lower
+upper_bound <- confidence_interval$Upper
+
+# Print the 95% confidence interval
+confidence_interval
+
+# Fit the model with individual intercepts and slopes
+fishmodel <- lm(log(Weight) ~ Length1 * Species, data = fish)
+
+# Use the contrast framework to estimate the slope for the Smelt species
+contrast_matrix <- matrix(c(0, 0, 0, 0, 1, 0, 0, 0), nrow = 1)
+slope_smelt <- lm.contrast(fishmodel, contrast_matrix)
+
+# Print the estimated slope for the Smelt species
+slope_smelt$Estimates
+
+
+```
+A: The summary provided an intercept of 2.27 and the two have a differnce in the slope is 3.92 difference as well 95% intervals printed on the graphs under confidence interval. The estimated slope for the Smelt species can be interpreted as the average change in the natural logarithm of Weight associated with a one-unit increase in Length1 for Smelt fish, while holding other variables constant. The point estimate of the slope represents the estimated magnitude of this change.
+
+B: The contrast matrix [0, 0, 0, 0, 0, 1] is used to compare the slopes of the pike and smelt species. The estimate in the contrast results represents the difference in the slopes between the two species. The confidence interval (Lower and Upper) provides a range within which we can be 95% confident that the true difference in slopes lies. The p-value indicates the significance of the difference, where a small p-value suggests strong evidence against the null hypothesis of no difference in slopes.
+
+```{r}
+fishmodel<-lm(log(Weight)~Length1*Species,data=fish)
+summary(fishmodel)
+par(mfrow=c(2,2))
+plot(fishmodel)
+```
+
+### Exercise 3
+
+A: A lack of linearity in a linear regression model is problematic because it violates one of the fundamental assumptions of the model. Linear regression assumes that the relationship between the predictor variables and the response variable is linear. If this assumption is violated and there is a lack of linearity, the model's predictions may be inaccurate and unreliable. Consequently, the model may fail to capture the true relationship between the variables, leading to biased estimates and invalid inference.
+
+B: 
+```{r}
+par(mfrow = c(2, 2))
+
+# Quadratic fit
+mymodel_quad <- lm(y ~ poly(x, 2))
+plot(x, y, main = "Quadratic Fit", xlab = "x", ylab = "y")
+lines(x, predict(mymodel_quad), col = "red")
+
+# Cubic fit
+mymodel_cubic <- lm(y ~ poly(x, 3))
+plot(x, y, main = "Cubic Fit", xlab = "x", ylab = "y")
+lines(x, predict(mymodel_cubic), col = "red")
+
+# Quartic fit
+mymodel_quartic <- lm(y ~ poly(x, 4))
+plot(x, y, main = "Quartic Fit", xlab = "x", ylab = "y")
+lines(x, predict(mymodel_quartic), col = "red")
+
+par(mfrow = c(1, 1))
+
+```
+The provided code simulates a dataset that follows a trend represented by a 4th degree polynomial. The scatter plot of the data shows a non-linear pattern with some variability. The residual plots from the regression model can help assess how well the model captures the underlying trend. The first plot displays the scatter plot of the data points, showing the general shape of the trend. The second plot, which shows the residuals plotted against the fitted values, helps us understand how well the model fits the data. In this case, the residuals appear to exhibit a systematic pattern, indicating that the current quadratic model may not fully capture the complex non-linear relationship between the predictor and response variables. The third plot, with the residuals plotted against the predictor variable, reveals a non-random pattern, suggesting that there is still unexplained variation in the model. To achieve a better model fit, it would be beneficial to repeat the graphics using higher-degree polynomial fits, such as cubic or quartic, in order to better capture the intricacies of the underlying trend and reduce the systematic patterns in the residuals.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
