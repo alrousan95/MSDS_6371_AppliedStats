@@ -1,0 +1,205 @@
+---
+title: "Unit 2 Pre-Live Assignment"
+author: "Mohammad Al-Rousan"
+date: "2023-05-16"
+output: html_document
+---
+### Discussion 1 Answers 
+A: The train MSE generated from fitting a fifth degree polynomial model to the data is likely to be lower than the train MSE generated from a quadratic model. The increased complexity of the fifth degree polynomial model allows it to better fit the training data, capturing more intricate patterns. However, it is important to assess the model's performance on independent test data to determine if the test MSE is also lower. Overfitting is a concern when using higher-degree polynomial models, as they may not generalize well to new, unseen data, potentially leading to higher test MSE.
+
+B: The increasing overfitting risk when the number of observations is insufficient, and significant computation time when the number of variables is large.
+
+```{r}
+golf<-read.csv("/Users/alrousan95/Downloads/GolfData2.csv")
+names(golf)
+```
+### Discussion 2 Answers 
+```{r}
+earningModel <- lm(AvgWinnings ~ Greens + AvgPutts + Save + AvgDrive + DriveAcc + Age, data = golf)
+plot(earningModel)
+
+earningModel2 <- lm(AvgWinnings ~ Greens + AvgPutts + Save + AvgDrive + DriveAcc + Age + Events, data = golf)
+plot(earningModel2)
+
+earningModel3 <- lm(AvgWinnings ~ Greens + AvgPutts + Save + AvgDrive + DriveAcc + Age + Events + TotalWinning, data = golf)
+plot(earningModel3)
+
+earningModel4 <- lm(AvgWinnings ~ Greens + AvgPutts + Save + AvgDrive + DriveAcc + Age + Events + TotalWinning + Events, data = golf)
+plot(earningModel4)
+```
+
+A: I created four models and for the model I decided to use was the second model because when I plotted the graph it was the most linear while the other graphs had more of a horizontal slop while the second model leaned more vertically. I factored in variables associated with golf play as well as the events because it seemed the more events ones played, the greater their average winnings increased. 
+
+B: I prefer an adjusted R-squared because adjusted R-squared can provide a more precise view of the correlation by also taking into account how many independent variables are added to a particular model against which the stock index is measured.
+
+```{r}
+library(leaps)
+golf2<-golf[,-c(1,8,10)]
+reg.fwd=regsubsets(log(AvgWinnings)~.,data=golf2,method="forward",nvmax=20)
+
+summary(reg.fwd)$adjr2
+summary(reg.fwd)$rss
+summary(reg.fwd)$bic
+
+par(mfrow=c(1,3))
+bics<-summary(reg.fwd)$bic
+plot(1:20,bics,type="l",ylab="BIC",xlab="# of predictors")
+index<-which(bics==min(bics))
+points(index,bics[index],col="red",pch=10)
+
+adjr2<-summary(reg.fwd)$adjr2
+plot(1:20,adjr2,type="l",ylab="Adjusted R-squared",xlab="# of predictors")
+index<-which(adjr2==max(adjr2))
+points(index,adjr2[index],col="red",pch=10)
+
+rss<-summary(reg.fwd)$rss
+plot(1:20,rss,type="l",ylab="train RSS",xlab="# of predictors")
+index<-which(rss==min(rss))
+points(index,rss[index],col="red",pch=10)
+
+```
+
+
+
+```{r}
+library(caret)
+set.seed(1234)
+trainIndex<-createDataPartition(golf2$AvgWinnings,p=.5,list=F)  #p: proportion of data in train
+
+training<-golf2[trainIndex,]
+validate<-golf2[-trainIndex,]
+
+fwd.train=regsubsets(log(AvgWinnings)~.,data=training,method="forward",nvmax=20)
+
+#Creating a prediction function 
+predict.regsubsets =function (object , newdata ,id ,...){
+  form=as.formula (object$call [[2]])
+  mat=model.matrix(form ,newdata )
+  coefi=coef(object ,id=id)
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+valMSE<-c()
+#note my index, i, is to 20 since that is how many predictors I went up to during fwd selection
+for (i in 1:20){
+  predictions<-predict.regsubsets(object=fwd.train,newdata=validate,id=i) 
+  valMSE[i]<-mean((log(validate$AvgWinnings)-predictions)^2)
+}
+par(mfrow=c(1,1))
+plot(1:20,sqrt(valMSE),type="l",xlab="# of predictors",ylab="test vs train RMSE",ylim=c(0.3,.9))
+index<-which(valMSE==min(valMSE))
+points(index,sqrt(valMSE[index]),col="red",pch=10)
+
+trainMSE<-summary(fwd.train)$rss/nrow(training)
+lines(1:20,sqrt(trainMSE),lty=3,col="blue")  
+
+### Running the 80/20 split
+
+library(caret)
+set.seed(1234)
+trainIndex<-createDataPartition(golf2$AvgWinnings,p=.8,list=F)  #p: proportion of data in train
+
+training<-golf2[trainIndex,]
+validate<-golf2[-trainIndex,]
+
+fwd.train=regsubsets(log(AvgWinnings)~.,data=training,method="forward",nvmax=20)
+
+#Creating a prediction function 
+predict.regsubsets =function (object , newdata ,id ,...){
+  form=as.formula (object$call [[2]])
+  mat=model.matrix(form ,newdata )
+  coefi=coef(object ,id=id)
+  xvars=names(coefi)
+  mat[,xvars]%*%coefi
+}
+
+valMSE<-c()
+#note my index, i, is to 20 since that is how many predictors I went up to during fwd selection
+for (i in 1:20){
+  predictions<-predict.regsubsets(object=fwd.train,newdata=validate,id=i) 
+  valMSE[i]<-mean((log(validate$AvgWinnings)-predictions)^2)
+}
+par(mfrow=c(1,1))
+plot(1:20,sqrt(valMSE),type="l",xlab="# of predictors",ylab="test vs train RMSE",ylim=c(0.3,.9))
+index<-which(valMSE==min(valMSE))
+points(index,sqrt(valMSE[index]),col="red",pch=10)
+
+trainMSE<-summary(fwd.train)$rss/nrow(training)
+lines(1:20,sqrt(trainMSE),lty=3,col="blue") 
+```
+
+C: After we increased the split, it basically increased the predictor from 3 to 11 predictors. 
+
+#### Discussion 3 Asnwers
+
+```{r}
+library(caret)
+set.seed(1234)
+
+fitControl<-trainControl(method="repeatedcv",number=10,repeats=10) 
+glmnet.fit<-train(log(AvgWinnings)~.,
+               data=golf2,
+               method="glmnet",
+               trControl=fitControl
+               )
+glmnet.fit
+plot(glmnet.fit)
+opt.pen<-glmnet.fit$finalModel$lambdaOpt #penalty term
+coef(glmnet.fit$finalModel,opt.pen)
+
+#Lasso Fit
+library(caret)
+set.seed(1234)
+
+fitControl<-trainControl(method="repeatedcv",number=10,repeats=10) 
+lasso.fit<-train(log(AvgWinnings)~.,
+               data=golf2,
+               method="lasso",
+               trControl=fitControl
+               )
+lasso.fit
+plot(lasso.fit)
+opt.pen<-lasso.fit$finalModel$lambdaOpt #penalty term
+coef(lasso.fit$finalModel,opt.pen)
+
+#Ridge Fit 
+library(caret)
+set.seed(1234)
+
+fitControl<-trainControl(method="repeatedcv",number=10,repeats=10) 
+ridge.fit<-train(log(AvgWinnings)~.,
+               data=golf2,
+               method="ridge",
+               trControl=fitControl
+               )
+ridge.fit
+plot(ridge.fit)
+opt.pen<-ridge.fit$finalModel$lambdaOpt #penalty term
+coef(ridge.fit$finalModel,opt.pen)
+
+```
+A: LASSO regression: Predictors that have their coefficients shrink to zero for some value of lambda, indicated by the lines turning black. LASSO performs feature selection by driving some coefficients to exactly zero.
+
+```{r}
+x=model.matrix(AvgWinnings~.,golf2)[,-1]
+y=log(golf2$AvgWinnings)
+
+library(glmnet)
+set.seed(1234)
+
+#grid=10^seq(10,-2, length =100)
+#lasso.mod=glmnet(x,y,alpha=1, lambda =grid)
+
+cv.out=cv.glmnet(x,y,alpha=1)
+plot(cv.out)
+bestlambda<-cv.out$lambda.1se
+coef(cv.out,s=bestlambda)
+
+```
+
+B: Well, the graphs is different, and the I would go with the previous graphs. 
+
+
+
+
